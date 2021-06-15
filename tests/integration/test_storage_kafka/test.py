@@ -2505,6 +2505,35 @@ def test_kafka_issue14202(kafka_cluster):
         DROP TABLE test.kafka_q;
     ''')
 
+@pytest.mark.timeout(180)
+def test_kafka_issue19255(kafka_cluster):
+    kafka_produce('issue19255', None)
+
+    instance.query('''
+        CREATE TABLE test.null_kafka (time UInt64)
+            ENGINE = Kafka
+            SETTINGS kafka_broker_list = 'kafka1:19092',
+                     kafka_topic_list = 'issue19255',
+                     kafka_group_name = 'issue19255',
+                     kafka_format = 'JSONEachRow',
+                     kafka_row_delimiter = '\\n',
+                     kafka_flush_interval_ms=1000,
+                     input_format_import_nested_json = 1;
+        ''')
+
+    while int(instance.query('SELECT count() FROM test.null_kafka')) <= 0:
+        time.sleep(1)
+
+    result = instance.query('SELECT * FROM test.null_kafka ORDER BY time;')
+
+    instance.query('''
+        DROP TABLE test.null_kafka;
+    ''')
+
+    expected = '''\
+null
+'''
+    assert TSV(result) == TSV(expected)
 
 @pytest.mark.timeout(180)
 def test_kafka_csv_with_thread_per_consumer(kafka_cluster):
